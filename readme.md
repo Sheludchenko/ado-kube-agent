@@ -1,0 +1,1 @@
+docker build -t sheludchenko/agent-controller:latest .

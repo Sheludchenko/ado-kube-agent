@@ -4,10 +4,9 @@ metadata:
   name: {{ include "agent-controller.fullname" . }}
   labels:
     {{- include "agent-controller.labels" . | nindent 4 }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "agent-controller.selectorLabels" . | nindent 6 }}
@@ -26,27 +25,43 @@ spec:
       {{- end }}
       serviceAccountName: {{ include "agent-controller.serviceAccountName" . }}
       securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+        runAsNonRoot: true
+        fsGroup: 9999
+        runAsUser: 9999
       containers:
-        - name: {{ .Chart.Name }}
+        - name: agent-controller
+          env:
+            - name: POLL_INTERVAL
+              value: "{{ .Values.pollInterval }}"
+            - name: TARGET_NAMESPACE
+              value: "{{ .Release.Namespace }}"
+            - name: AGENT_INSTANCE_NAME
+              value: "{{ .Release.Name }}"
+            - name: AGENT_IMAGE
+              value: "{{ .Values.agent.image }}"
+            - name: AGENT_POOL_NAME
+              value: "{{ .Values.agent.poolName }}"
+            - name: AGENT_WORK_DIRECTORY
+              value: "{{ .Values.agent.workDirectory }}"
+            - name: ORGANIZATION_URL
+              value: "{{ .Values.agent.organizationUrl }}"
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: {{ .Values.service.port }}
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10000
+          image: "{{ .Values.image }}"
+          imagePullPolicy: {{ .Values.pullPolicy }}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
